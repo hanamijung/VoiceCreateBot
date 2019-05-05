@@ -6,40 +6,39 @@ import json
 import datetime
 from discord.ext import commands
 import traceback
-import sqlite3
 from urllib.parse import quote
 import validators
 from discord.ext.commands.cooldowns import BucketType
 from time import gmtime, strftime
 import os
+import pymongo
 
 
 class voice(commands.Cog):
 
 
     def initDB(self):
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        c.execute("CREATE TABLE IF NOT EXISTS `guild` ( `guildID` INTEGER, `ownerID` INTEGER, `voiceChannelID` INTEGER, `voiceCategoryID` INTEGER )")
-        c.execute("CREATE TABLE IF NOT EXISTS `guildSettings` ( `guildID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
-        c.execute("CREATE TABLE IF NOT EXISTS `userSettings` ( `userID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
-        c.execute("CREATE TABLE IF NOT EXISTS `voiceChannel` ( `userID` INTEGER, `voiceID` INTEGER )")
-        conn.commit()
-        c.close()
-        conn.close()
+        conn = pymongo.MongoClient(self.db_connection)
+        db = conn["voicedb"]
+        # c.execute("CREATE TABLE IF NOT EXISTS `guild` ( `guildID` INTEGER, `ownerID` INTEGER, `voiceChannelID` INTEGER, `voiceCategoryID` INTEGER )")
+        # c.execute("CREATE TABLE IF NOT EXISTS `guildSettings` ( `guildID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
+        # c.execute("CREATE TABLE IF NOT EXISTS `userSettings` ( `userID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
+        # c.execute("CREATE TABLE IF NOT EXISTS `voiceChannel` ( `userID` INTEGER, `voiceID` INTEGER )")
 
 
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.environ['VCB_DB_PATH'] or 'voice.db'
+        self.db_connection = os.environ['VCB_MONGO_CS']
         self.initDB()
 
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
+        conn = pymongo.MongoClient(self.db_connection)
+        db = conn["voicedb"]
         guildID = member.guild.id
+        guild = db["guild"]
+        guild.find({})
         c.execute("SELECT voiceChannelID FROM guild WHERE guildID = ?", (guildID,))
         voice=c.fetchone()
         if voice is None:
@@ -118,7 +117,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def setup(self, ctx):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         guildID = ctx.guild.id
         id = ctx.author.id
@@ -157,7 +156,7 @@ class voice(commands.Cog):
 
     @commands.command()
     async def setlimit(self, ctx, num):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         if ctx.author.id == ctx.guild.owner.id or ctx.author.id == 151028268856770560:
             c.execute("SELECT * FROM guildSettings WHERE guildID = ?", (ctx.guild.id,))
@@ -178,7 +177,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def lock(self, ctx):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         id = ctx.author.id
         c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (id,))
@@ -196,7 +195,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def unlock(self, ctx):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         id = ctx.author.id
         c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (id,))
@@ -214,7 +213,7 @@ class voice(commands.Cog):
 
     @voice.command(aliases=["allow"])
     async def permit(self, ctx, member : discord.Member):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         id = ctx.author.id
         c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (id,))
@@ -231,7 +230,7 @@ class voice(commands.Cog):
 
     @voice.command(aliases=["deny"])
     async def reject(self, ctx, member : discord.Member):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         id = ctx.author.id
         guildID = ctx.guild.id
@@ -257,7 +256,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def limit(self, ctx, limit):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         id = ctx.author.id
         c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (id,))
@@ -281,7 +280,7 @@ class voice(commands.Cog):
 
     @voice.command()
     async def name(self, ctx,*, name):
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         id = ctx.author.id
         c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (id,))
@@ -305,7 +304,7 @@ class voice(commands.Cog):
     @voice.command()
     async def claim(self, ctx):
         x = False
-        conn = sqlite3.connect(self.db_path)
+        conn = pymongo.MongoClient(self.db_connection)
         c = conn.cursor()
         channel = ctx.author.voice.channel
         if channel == None:
