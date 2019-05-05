@@ -28,7 +28,7 @@ class voice(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.db_connection = os.environ['VCB_MONGO_CS']
+        self.db_connection = os.environ['VCB_DB_CONNECTION_STRING']
         self.initDB()
 
 
