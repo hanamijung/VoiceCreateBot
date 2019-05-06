@@ -27,7 +27,7 @@ class voice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_connection = os.environ['VCB_DB_CONNECTION_STRING']
-        self.admin_ids = os.environ["ADMIN_USERS"].split(" ")
+        self.admin_ids = (os.environ["ADMIN_USERS"] or "").split(" ")
         self.initDB()
 
     @commands.Cog.listener()
@@ -170,7 +170,7 @@ class voice(commands.Cog):
                     try:
                         channel = await ctx.guild.create_voice_channel(channel.content, category=new_cat)
                         guild = db["guild"]
-                        voiceGroup = guild.fetch_one(
+                        voiceGroup = guild.find_one(
                             {"guildID": guildID, "ownerID": aid})
                         # c.execute(
                         #     "SELECT * FROM guild WHERE guildID = ? AND ownerID=?", (guildID, aid))
