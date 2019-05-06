@@ -376,15 +376,18 @@ class voice(commands.Cog):
     async def claim(self, ctx):
         x = False
         conn = pymongo.MongoClient(self.db_connection)
-        c = conn.cursor()
+        db = conn["voicedb"]
+        # c = conn.cursor()
         channel = ctx.author.voice.channel
         if channel == None:
             await ctx.channel.send(f"{ctx.author.mention} you're not in a voice channel.")
         else:
             aid = ctx.author.id
-            c.execute(
-                "SELECT userID FROM voiceChannel WHERE voiceID = ?", (channel.id,))
-            voiceGroup = c.fetchone()
+            voiceChannel = db["voiceChannel"]
+            voiceGroup = voiceChannel.find_one({"userID": aid})
+            # c.execute(
+            #     "SELECT userID FROM voiceChannel WHERE voiceID = ?", (channel.id,))
+            # voiceGroup = c.fetchone()
             if voiceGroup is None:
                 await ctx.channel.send(f"{ctx.author.mention} You can't own that channel!")
             else:
@@ -395,10 +398,9 @@ class voice(commands.Cog):
                         x = True
                 if x == False:
                     await ctx.channel.send(f"{ctx.author.mention} You are now the owner of the channel!")
-                    c.execute(
-                        "UPDATE voiceChannel SET userID = ? WHERE voiceID = ?", (aid, channel.id))
-            conn.commit()
-            conn.close()
+                    voiceChannel.update_one({ "voiceID": channel.id }, { "inc$": { "userID": aid }})
+                    # c.execute(
+                    #     "UPDATE voiceChannel SET userID = ? WHERE voiceID = ?", (aid, channel.id))
 
 
 def setup(bot):
