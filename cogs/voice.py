@@ -177,12 +177,14 @@ class voice(commands.Cog):
                         # voiceGroup = c.fetchone()
                         if voiceGroup is None:
                             pass
-                            guild.insert_one({"guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID", new_cat.id})
+                            guild.insert_one(
+                                {"guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id})
                             # c.execute("INSERT INTO guild VALUES (?, ?, ?, ?)",
                             #           (guildID, aid, channel.id, new_cat.id))
                         else:
 
-                            guild.update_one({"guildID": guildID}, {"$inc": {"guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID", new_cat.id}}, True)
+                            guild.update_one({"guildID": guildID}, {"$inc": {
+                                             "guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id}}, True)
                             # c.execute("UPDATE guild SET guildID = ?, ownerID = ?, voiceChannelID = ?, voiceCategoryID = ? WHERE guildID = ?", (
                             #     guildID, aid, channel.id, new_cat.id, guildID))
                         await ctx.channel.send("**You are all setup and ready to go!**")
@@ -204,7 +206,8 @@ class voice(commands.Cog):
             #           (ctx.guild.id,))
             # voiceGroup = c.fetchone()
             if voiceGroup is None:
-                guildSettings.insert_one({"guildID": ctx.guild.id, "channelName": f"{ctx.author.name}'s channel", num})
+                guildSettings.insert_one(
+                    {"guildID": ctx.guild.id, "channelName": f"{ctx.author.name}'s channel", "channelLimit": num})
                 # c.execute("INSERT INTO guildSettings VALUES (?, ?, ?)",
                 #           (ctx.guild.id, f"{ctx.author.name}'s channel", num))
             else:
@@ -398,7 +401,8 @@ class voice(commands.Cog):
                         x = True
                 if x == False:
                     await ctx.channel.send(f"{ctx.author.mention} You are now the owner of the channel!")
-                    voiceChannel.update_one({ "voiceID": channel.id }, { "inc$": { "userID": aid }})
+                    voiceChannel.update_one({"voiceID": channel.id}, {
+                                            "inc$": {"userID": aid}})
                     # c.execute(
                     #     "UPDATE voiceChannel SET userID = ? WHERE voiceID = ?", (aid, channel.id))
 
