@@ -38,9 +38,9 @@ class voice(commands.Cog):
         db = conn["voicedb"]
         guildID = member.guild.id
         guild = db["guild"]
-        guild.find({})
-        c.execute("SELECT voiceChannelID FROM guild WHERE guildID = ?", (guildID,))
-        voice=c.fetchone()
+        voice = guild.find_one({ "guildID": guildID })
+        # c.execute("SELECT voiceChannelID FROM guild WHERE guildID = ?", (guildID,))
+        # voice=c.fetchone()
         if voice is None:
             pass
         else:
