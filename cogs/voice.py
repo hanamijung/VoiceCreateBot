@@ -45,8 +45,7 @@ class voice(commands.Cog):
                     userSettings = db["userSettings"]
                     setting = userSettings.find_one({"userID": member.id})
                     guildSettingsCollection = db["guildSettings"]
-                    guildSetting = guildSettingsCollection.find_one(
-                        {"guildID": guildID})
+                    guildSetting = guildSettingsCollection.find_one({"guildID": guildID})
                     # Set default for setting and guildSetting
                     if setting is None:
                         name = f"{member.name}'s channel"
@@ -144,7 +143,6 @@ class voice(commands.Cog):
                         voiceGroup = guild.find_one(
                             {"guildID": guildID, "ownerID": aid})
                         if voiceGroup is None:
-                            pass
                             guild.insert_one(
                                 {"guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id})
                         else:
@@ -170,8 +168,7 @@ class voice(commands.Cog):
                 guildSettings.insert_one(
                     {"guildID": ctx.guild.id, "channelName": f"{ctx.author.name}'s channel", "channelLimit": num})
             else:
-                guildSettings.update_one({"guildID": ctx.guild.id}, {"inc$": {
-                                         "channelLimit": num}}, True)
+                guildSettings.update_one({"guildID": ctx.guild.id}, { "inc$": {"channelLimit": num}}, True)
             await ctx.send("You have changed the default channel limit for your server!")
         else:
             await ctx.channel.send(f"{ctx.author.mention} only the owner or admins of the server can setup the bot!")
@@ -321,6 +318,7 @@ class voice(commands.Cog):
                     await ctx.channel.send(f"{ctx.author.mention} You are now the owner of the channel!")
                     voiceChannel.update_one({"voiceID": channel.id}, {
                                             "inc$": {"userID": aid}})
+
 
 def setup(bot):
     bot.add_cog(voice(bot))
