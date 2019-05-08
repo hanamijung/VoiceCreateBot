@@ -1,17 +1,10 @@
-import discord
-import math
-import asyncio
-import aiohttp
-import json
-import datetime
-from discord.ext import commands
-import traceback
-from urllib.parse import quote
-import validators
-from discord.ext.commands.cooldowns import BucketType
-from time import gmtime, strftime
 import os
+import asyncio
+import traceback
+import discord
 import pymongo
+from discord.ext import commands
+# from discord.ext.commands.cooldowns import BucketType
 
 
 class voice(commands.Cog):
@@ -147,10 +140,9 @@ class voice(commands.Cog):
                                 {"guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id})
                         else:
 
-                            guild.update_one({"guildID": guildID}, {"$inc": {
-                                             "guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id}}, True)
+                            guild.update_one({"guildID": guildID}, {"$inc": { "guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id}}, True)
                         await ctx.channel.send("**You are all setup and ready to go!**")
-                    except Exception as e:
+                    except Exception:
                         traceback.print_exc()
                         await ctx.channel.send("You didn't enter the names properly.\nUse `.voice setup` again!")
         else:
