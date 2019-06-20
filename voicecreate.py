@@ -28,6 +28,7 @@ if __name__ == '__main__':
 
 @bot.event
 async def on_ready():
+    print('------')
     print('Logged in as')
     print(bot.user.name)
     print(bot.user.id)
