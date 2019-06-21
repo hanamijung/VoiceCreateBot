@@ -1,45 +1,27 @@
-import discord
-import math
-import asyncio
-import aiohttp
-import json
-import datetime
-from discord.ext import commands
-import traceback
-from urllib.parse import quote
-import validators
-from discord.ext.commands.cooldowns import BucketType
-from time import gmtime, strftime
 import os
+import asyncio
+import traceback
+import discord
 import pymongo
+from discord.ext import commands
+# from discord.ext.commands.cooldowns import BucketType
 
 
 class voice(commands.Cog):
-
-    def initDB(self):
-        conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c.execute("CREATE TABLE IF NOT EXISTS `guild` ( `guildID` INTEGER, `ownerID` INTEGER, `voiceChannelID` INTEGER, `voiceCategoryID` INTEGER )")
-        # c.execute("CREATE TABLE IF NOT EXISTS `guildSettings` ( `guildID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
-        # c.execute("CREATE TABLE IF NOT EXISTS `userSettings` ( `userID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
-        # c.execute("CREATE TABLE IF NOT EXISTS `voiceChannel` ( `userID` INTEGER, `voiceID` INTEGER )")
-
     def __init__(self, bot):
         self.bot = bot
-        self.db_connection = os.environ['VCB_DB_CONNECTION_STRING']
+        self.db_connection = os.environ["VCB_DB_CONNECTION_STRING"]
+        self.db_database = os.environ["VCB_DATABASE_NAME"] or "voicedb"
         self.admin_ids = (os.environ["ADMIN_USERS"] or "").split(" ")
-        self.initDB()
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
+        db = conn[self.db_database]
         guildID = member.guild.id
         guild = db["guild"]
-        voice = guild.find_one({"guildID": guildID})
-        # c.execute("SELECT voiceChannelID FROM guild WHERE guildID = ?", (guildID,))
-        # voice=c.fetchone()
-        if voice is None:
+        voiceGuild = guild.find_one({"guildID": guildID})
+        if voiceGuild is None:
             print(f"No voice channel found for GuildID: {guildID}")
         else:
             voiceID = voice[0]
@@ -47,30 +29,16 @@ class voice(commands.Cog):
                 if after.channel is not None and after.channel.id == voiceID:
                     voiceChannel = db["voiceChannel"]
                     cooldown = voiceChannel.find_one({"userID": member.id})
-                    # c.execute(
-                    #     "SELECT * FROM voiceChannel WHERE userID = ?", (member.id,))
-                    # cooldown = c.fetchone()
                     if cooldown is None:
                         pass
                     else:
                         await member.send("Creating channels too quickly you've been put on a 15 second cooldown!")
                         await asyncio.sleep(15)
-                    voice = guild.find_one({"guildID": guildID})
-                    # c.execute(
-                    #     "SELECT voiceCategoryID FROM guild WHERE guildID = ?", (guildID,))
-                    # voice = c.fetchone()
+                    voiceGuild = guild.find_one({"guildID": guildID})
                     userSettings = db["userSettings"]
                     setting = userSettings.find_one({"userID": member.id})
-                    # c.execute(
-                    #     "SELECT channelName, channelLimit FROM userSettings WHERE userID = ?", (member.id,))
-                    # setting = c.fetchone()
                     guildSettingsCollection = db["guildSettings"]
-                    guildSetting = guildSettingsCollection.find_one(
-                        {"guildID": guildID})
-                    # c.execute(
-                    #     "SELECT channelLimit FROM guildSettings WHERE guildID = ?", (guildID,))
-                    # guildSetting = c.fetchone()
-
+                    guildSetting = guildSettingsCollection.find_one({"guildID": guildID})
                     # Set default for setting and guildSetting
                     if setting is None:
                         name = f"{member.name}'s channel"
@@ -103,9 +71,6 @@ class voice(commands.Cog):
                     print(f"Track voiceChannel {mid},{channelID}")
                     voiceChannel.insert_one(
                         {"userID": mid, "voiceID": channelID})
-                    # c.execute(
-                    #     "INSERT INTO voiceChannel VALUES (?, ?)", (mid, channelID))
-                    # conn.commit()
 
                     def check(a, b, c):
                         return len(channel2.members) == 0
@@ -114,7 +79,6 @@ class voice(commands.Cog):
                     await channel2.delete()
                     await asyncio.sleep(3)
                     voiceChannel.delete_many({"userID": mid})
-                    # c.execute('DELETE FROM voiceChannel WHERE userID=?', (mid,))
             except Exception as ex:
                 print(ex)
                 traceback.print_exc()
@@ -142,8 +106,7 @@ class voice(commands.Cog):
     @voice.command(pass_context=True)
     async def setup(self, ctx):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         guildID = ctx.guild.id
         print(f"User id triggering setup: {ctx.author.id}")
         print(f"Owner id: {ctx.guild.owner.id}")
@@ -172,23 +135,14 @@ class voice(commands.Cog):
                         guild = db["guild"]
                         voiceGroup = guild.find_one(
                             {"guildID": guildID, "ownerID": aid})
-                        # c.execute(
-                        #     "SELECT * FROM guild WHERE guildID = ? AND ownerID=?", (guildID, aid))
-                        # voiceGroup = c.fetchone()
                         if voiceGroup is None:
-                            pass
                             guild.insert_one(
                                 {"guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id})
-                            # c.execute("INSERT INTO guild VALUES (?, ?, ?, ?)",
-                            #           (guildID, aid, channel.id, new_cat.id))
                         else:
 
-                            guild.update_one({"guildID": guildID}, {"$inc": {
-                                             "guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id}}, True)
-                            # c.execute("UPDATE guild SET guildID = ?, ownerID = ?, voiceChannelID = ?, voiceCategoryID = ? WHERE guildID = ?", (
-                            #     guildID, aid, channel.id, new_cat.id, guildID))
+                            guild.update_one({"guildID": guildID}, {"$inc": { "guildID": guildID, "ownerID": aid, "voiceChannelID": channel.id, "voiceCategoryID": new_cat.id}}, True)
                         await ctx.channel.send("**You are all setup and ready to go!**")
-                    except Exception as e:
+                    except Exception:
                         traceback.print_exc()
                         await ctx.channel.send("You didn't enter the names properly.\nUse `.voice setup` again!")
         else:
@@ -197,24 +151,16 @@ class voice(commands.Cog):
     @commands.command(pass_context=True)
     async def setlimit(self, ctx, num):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
+        db = conn[self.db_database]
         # removed the specific user permission and checked for admin status instead.
         if ctx.author.id == ctx.guild.owner.id or ctx.author.id in self.admin_ids:
             guildSettings = db["guildSettings"]
             voiceGroup = guildSettings.find_one({"guildID": ctx.guild.id})
-            # c.execute("SELECT * FROM guildSettings WHERE guildID = ?",
-            #           (ctx.guild.id,))
-            # voiceGroup = c.fetchone()
             if voiceGroup is None:
                 guildSettings.insert_one(
                     {"guildID": ctx.guild.id, "channelName": f"{ctx.author.name}'s channel", "channelLimit": num})
-                # c.execute("INSERT INTO guildSettings VALUES (?, ?, ?)",
-                #           (ctx.guild.id, f"{ctx.author.name}'s channel", num))
             else:
-                guildSettings.update_one({"guildID": ctx.guild.id}, {"inc$": {
-                                         "channelLimit": num}}, True)
-                # c.execute(
-                #     "UPDATE guildSettings SET channelLimit = ? WHERE guildID = ?", (num, ctx.guild.id))
+                guildSettings.update_one({"guildID": ctx.guild.id}, { "inc$": {"channelLimit": num}}, True)
             await ctx.send("You have changed the default channel limit for your server!")
         else:
             await ctx.channel.send(f"{ctx.author.mention} only the owner or admins of the server can setup the bot!")
@@ -226,14 +172,11 @@ class voice(commands.Cog):
     @voice.command()
     async def lock(self, ctx):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         aid = ctx.author.id
         print(f"{ctx.author} triggered lock")
         voiceChannel = db["voiceChannel"]
         voiceGroup = voiceChannel.find_one({"userID": aid})
-        # c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
-        # voiceGroup = c.fetchone()
         if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
@@ -246,13 +189,10 @@ class voice(commands.Cog):
     @voice.command()
     async def unlock(self, ctx):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         aid = ctx.author.id
         voiceChannel = db["voiceChannel"]
         voiceGroup = voiceChannel.find_one({"userID", aid})
-        # c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
-        # voiceGroup = c.fetchone()
         if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
@@ -265,13 +205,10 @@ class voice(commands.Cog):
     @voice.command(aliases=["allow"])
     async def permit(self, ctx, member: discord.Member):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         aid = ctx.author.id
         voiceChannel = db["voiceChannel"]
         voiceGroup = voiceChannel.find_one({"userID": aid})
-        # c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
-        # voiceGroup = c.fetchone()
         if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
@@ -283,14 +220,11 @@ class voice(commands.Cog):
     @voice.command(aliases=["deny"])
     async def reject(self, ctx, member: discord.Member):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         aid = ctx.author.id
         guildID = ctx.guild.id
         voiceChannel = db["voiceChannel"]
         voiceGroup = voiceChannel.find_one({"userID": aid})
-        # c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
-        # voiceGroup = c.fetchone()
         if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
@@ -300,9 +234,6 @@ class voice(commands.Cog):
                 if members.id == member.id:
                     guild = db["guild"]
                     voiceGroup = guild.find_one({"guildID": guildID})
-                    # c.execute(
-                    #     "SELECT voiceChannelID FROM guild WHERE guildID = ?", (guildID,))
-                    # voiceGroup = c.fetchone()
                     channel2 = self.bot.get_channel(voiceGroup[0])
                     await member.move_to(channel2)
             await channel.set_permissions(member, connect=False, read_messages=True)
@@ -311,13 +242,10 @@ class voice(commands.Cog):
     @voice.command()
     async def limit(self, ctx, limit):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         aid = ctx.author.id
         voiceChannel = db["voiceChannel"]
         voiceGroup = voiceChannel.find_one({"userID": aid})
-        # c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
-        # voiceGroup = c.fetchone()
         if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
@@ -327,32 +255,22 @@ class voice(commands.Cog):
             await ctx.channel.send(f'{ctx.author.mention} You have set the channel limit to be ' + '{}!'.format(limit))
             guild = db["guild"]
             voiceGroup = guild.find_one({"userID": aid})
-            # c.execute(
-            #     "SELECT channelName FROM userSettings WHERE userID = ?", (aid,))
-            # voiceGroup = c.fetchone()
             userSettings = db["userSettings"]
             if voiceGroup is None:
                 userSettings.insert_one(
                     {"userID": aid, "channelName": f"{ctx.author.name}", "channelLimit": limit})
-                # c.execute("INSERT INTO userSettings VALUES (?, ?, ?)",
-                #           (aid, f'{ctx.author.name}', limit))
             else:
                 userSettings.update_one(
                     {"userID": aid}, {"inc$": {"channelLimit": limit}})
-                # c.execute(
-                #     "UPDATE userSettings SET channelLimit = ? WHERE userID = ?", (limit, aid))
 
     @voice.command()
     async def name(self, ctx, *, name):
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         aid = ctx.author.id
         voiceChannel = db["voiceChannel"]
         voiceGroup = voiceChannel.find_one({"userID": aid})
-        # c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
-        # voiceGroup = c.fetchone()
-        if voice is None:
+        if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
             channelID = voiceGroup[0]
@@ -361,36 +279,25 @@ class voice(commands.Cog):
             await ctx.channel.send(f'{ctx.author.mention} You have changed the channel name to ' + '{}!'.format(name))
             userSettings = db["userSettings"]
             voiceGroup = userSettings.find_one({"userID": aid})
-            # c.execute(
-            #     "SELECT channelName FROM userSettings WHERE userID = ?", (aid,))
-            # voiceGroup = c.fetchone()
             if voiceGroup is None:
                 userSettings.insert_one(
                     {"userID": aid, "channelName": name, "channelLimit": 0})
-                # c.execute(
-                #     "INSERT INTO userSettings VALUES (?, ?, ?)", (aid, name, 0))
             else:
                 userSettings.update_one(
                     {"userID": aid}, {"inc$": {"channelName": name}})
-                # c.execute(
-                #     "UPDATE userSettings SET channelName = ? WHERE userID = ?", (name, aid))
 
     @voice.command()
     async def claim(self, ctx):
-        x = False
+        ownedByThisUser = False
         conn = pymongo.MongoClient(self.db_connection)
-        db = conn["voicedb"]
-        # c = conn.cursor()
+        db = conn[self.db_database]
         channel = ctx.author.voice.channel
-        if channel == None:
+        if channel is None:
             await ctx.channel.send(f"{ctx.author.mention} you're not in a voice channel.")
         else:
             aid = ctx.author.id
             voiceChannel = db["voiceChannel"]
             voiceGroup = voiceChannel.find_one({"userID": aid})
-            # c.execute(
-            #     "SELECT userID FROM voiceChannel WHERE voiceID = ?", (channel.id,))
-            # voiceGroup = c.fetchone()
             if voiceGroup is None:
                 await ctx.channel.send(f"{ctx.author.mention} You can't own that channel!")
             else:
@@ -398,13 +305,11 @@ class voice(commands.Cog):
                     if data.id == voiceGroup[0]:
                         owner = ctx.guild.get_member(voiceGroup[0])
                         await ctx.channel.send(f"{ctx.author.mention} This channel is already owned by {owner.mention}!")
-                        x = True
-                if x == False:
+                        ownedByThisUser = True
+                if not ownedByThisUser:
                     await ctx.channel.send(f"{ctx.author.mention} You are now the owner of the channel!")
                     voiceChannel.update_one({"voiceID": channel.id}, {
                                             "inc$": {"userID": aid}})
-                    # c.execute(
-                    #     "UPDATE voiceChannel SET userID = ? WHERE voiceID = ?", (aid, channel.id))
 
 
 def setup(bot):
