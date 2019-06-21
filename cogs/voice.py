@@ -119,7 +119,7 @@ class voice(commands.Cog):
                 print(ex)
                 traceback.print_exc()
 
-    @commands.command()
+    @voice.command(pass_context=True)
     async def help(self, ctx):
         embed = discord.Embed(title="Help", description="", color=0x7289da)
         embed.set_author(name="Voice Create", url="http://darthminos.tv",
