@@ -33,7 +33,7 @@ class voice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_path = os.environ['VCB_DB_PATH'] or 'voice.db'
-        self.admin_ids = os.environ["ADMIN_USERS"].split(" ")
+        self.admin_role_id = os.environ["ADMIN_ROLE_ID"]
         self.initDB()
 
     @commands.Cog.listener()
@@ -140,10 +140,11 @@ class voice(commands.Cog):
         guildID = ctx.guild.id
         print(f"User id triggering setup: {ctx.author.id}")
         print(f"Owner id: {ctx.guild.owner.id}")
-        print(self.admin_ids)
-        print(str(ctx.author.id) in self.admin_ids)
+        print(f"Admin role id: {self.admin_role_id}")
+        is_author_admin = self.admin_role_id in [str(role.id) for role in ctx.author.roles]
+        print(f"Is user admin: {is_author_admin}")
         aid = ctx.author.id
-        if ctx.author.id == ctx.guild.owner.id or str(ctx.author.id) in self.admin_ids:
+        if ctx.author.id == ctx.guild.owner.id or is_author_admin:
             def check(m):
                 return m.author.id == ctx.author.id
             await ctx.channel.send("**You have 60 seconds to answer each question!**")
@@ -184,8 +185,9 @@ class voice(commands.Cog):
     async def setlimit(self, ctx, num):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
+        is_author_admin = self.admin_role_id in [str(role.id) for role in ctx.author.roles]
         # removed the specific user permission and checked for admin status instead.
-        if ctx.author.id == ctx.guild.owner.id or ctx.author.id in self.admin_ids:
+        if ctx.author.id == ctx.guild.owner.id or is_author_admin:
             c.execute("SELECT * FROM guildSettings WHERE guildID = ?",
                       (ctx.guild.id,))
             voiceGroup = c.fetchone()
