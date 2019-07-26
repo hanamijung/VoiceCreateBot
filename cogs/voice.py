@@ -1,3 +1,4 @@
+# -*- coding: future_fstrings -*-
 import discord
 import math
 import asyncio
@@ -32,7 +33,7 @@ class voice(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.environ['VCB_DB_PATH'] or 'voice.db'
+        self.db_path = os.environ.get('VCB_DB_PATH') or 'voice.db'
         self.admin_role_id = os.environ["ADMIN_ROLE_ID"]
         self.initDB()
 
@@ -43,12 +44,11 @@ class voice(commands.Cog):
         guildID = member.guild.id
         c.execute("SELECT voiceChannelID FROM guild WHERE guildID = ?", (guildID,))
         voice = c.fetchone()
-        if voice is None:
-            print(f"No voice channel found for GuildID: {guildID}")
-            pass
-        else:
-            voiceID = voice[0]
-            try:
+        try:
+            if voice is None:
+                print(f"No voice channel found for GuildID: {guildID}")
+            else:
+                voiceID = voice[0]
                 if after.channel is not None and after.channel.id == voiceID:
                     c.execute(
                         "SELECT * FROM voiceChannel WHERE userID = ?", (member.id,))
@@ -56,8 +56,17 @@ class voice(commands.Cog):
                     if cooldown is None:
                         pass
                     else:
-                        await member.send("Creating channels too quickly you've been put on a 15 second cooldown!")
-                        await asyncio.sleep(15)
+                        old_chan = self.bot.get_channel(cooldown[1])
+                        if old_chan is None:  # If channel no longer exists but still in database
+                            c.execute('DELETE FROM voiceChannel WHERE userID=?', (member.id,))
+                        elif before.channel is None:  # If channel already exists but shouldn't yet
+                            await old_chan.delete()
+                            c.execute('DELETE FROM voiceChannel WHERE userID=?', (member.id,))
+                        else:
+                            await member.send("Creating channels too quickly you've been put on a 15 second cooldown!")
+                            await asyncio.sleep(15)
+                            if member.voice is None:  # If member has left voice channel
+                                return
                     c.execute(
                         "SELECT voiceCategoryID FROM guild WHERE guildID = ?", (guildID,))
                     voice = c.fetchone()
@@ -91,8 +100,8 @@ class voice(commands.Cog):
                     channelID = channel2.id
                     print(f"Moving {member} to {channel2}")
                     await member.move_to(channel2)
-                    print(f"Setting permissions on {channel2}")
-                    await channel2.set_permissions(self.bot.user, connect=True, read_messages=True)
+                    #print(f"Setting permissions on {channel2}")
+                    #await channel2.set_permissions(self.bot.user, connect=True, read_messages=True)
                     print(f"Set user limit to {limit} on {channel2}")
                     await channel2.edit(name=name, user_limit=limit)
                     print(f"Track voiceChannel {mid},{channelID}")
@@ -107,17 +116,18 @@ class voice(commands.Cog):
                     await channel2.delete()
                     await asyncio.sleep(3)
                     c.execute('DELETE FROM voiceChannel WHERE userID=?', (mid,))
-            except Exception as ex:
-                print(ex)
-                traceback.print_exc()
-        conn.commit()
-        conn.close()
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+        finally:
+            conn.commit()
+            conn.close()
 
     @commands.command()
     async def help(self, ctx):
         embed = discord.Embed(title="Help", description="", color=0x7289da)
-        embed.set_author(name="Voice Create", url="http://darthminos.tv",
-                         icon_url="https://i.imgur.com/EIqP24c.png")
+        embed.set_author(name="Voice Create", url="https://github.com/t1m0thyj/VoiceCreateBot",
+                         icon_url="https://i.imgur.com/Ix8pdWil.png")
         embed.add_field(name=f'**Commands**', value=f'**Lock your channel by using the following command:**\n\n`.voice lock`\n\n------------\n\n'
                         f'**Unlock your channel by using the following command:**\n\n`.voice unlock`\n\n------------\n\n'
                         f'**Change your channel name by using the following command:**\n\n`.voice name <name>`\n\n**Example:** `.voice name EU 5kd+`\n\n------------\n\n'
@@ -126,7 +136,7 @@ class voice(commands.Cog):
                         f'**Claim ownership of channel once the owner has left:**\n\n`.voice claim`\n\n**Example:** `.voice claim`\n\n------------\n\n'
                         f'**Remove permission and the user from your channel using the following command:**\n\n`.voice reject @person`\n\n**Example:** `.voice reject @Sam#9452`\n\n', inline='false')
         embed.set_footer(
-            text='Bot developed by Sam#9452. Improved by DarthMinos#1161')
+            text='Bot developed by Sam#9452. Improved by DarthMinos#1161 and ArtfulAardvark#9968')
         await ctx.channel.send(embed=embed)
 
     @commands.group()
@@ -154,7 +164,12 @@ class voice(commands.Cog):
             except asyncio.TimeoutError:
                 await ctx.channel.send('Took too long to answer!')
             else:
-                new_cat = await ctx.guild.create_category_channel(category.content)
+                new_cat = None
+                for old_cat in ctx.guild.categories:
+                    if old_cat.name == category.content:
+                        new_cat = old_cat
+                if new_cat is None:
+                    new_cat = await ctx.guild.create_category_channel(category.content)
                 await ctx.channel.send('**Enter the name of the voice channel: (e.g Join To Create)**')
                 try:
                     channel = await self.bot.wait_for('message', check=check, timeout=60.0)
@@ -162,16 +177,21 @@ class voice(commands.Cog):
                     await ctx.channel.send('Took too long to answer!')
                 else:
                     try:
-                        channel = await ctx.guild.create_voice_channel(channel.content, category=new_cat)
+                        new_chan = None
+                        for old_chan in new_cat.channels:
+                            if old_chan.name == channel.content:
+                                new_chan = old_chan
+                        if new_chan is None:
+                            new_chan = await ctx.guild.create_voice_channel(channel.content, category=new_cat)
                         c.execute(
                             "SELECT * FROM guild WHERE guildID = ? AND ownerID=?", (guildID, aid))
                         voiceGroup = c.fetchone()
                         if voiceGroup is None:
                             c.execute("INSERT INTO guild VALUES (?, ?, ?, ?)",
-                                      (guildID, aid, channel.id, new_cat.id))
+                                      (guildID, aid, new_chan.id, new_cat.id))
                         else:
                             c.execute("UPDATE guild SET guildID = ?, ownerID = ?, voiceChannelID = ?, voiceCategoryID = ? WHERE guildID = ?", (
-                                guildID, aid, channel.id, new_cat.id, guildID))
+                                guildID, aid, new_chan.id, new_cat.id, guildID))
                         await ctx.channel.send("**You are all setup and ready to go!**")
                     except Exception as e:
                         traceback.print_exc()
@@ -313,13 +333,14 @@ class voice(commands.Cog):
         conn.close()
 
     @voice.command()
-    async def name(self, ctx, *, name):
+    async def name(self, ctx, *, name=None):
+        name = name or f"{ctx.author.name}'s channel"
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         aid = ctx.author.id
         c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
         voiceGroup = c.fetchone()
-        if voice is None:
+        if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
             channelID = voiceGroup[0]
