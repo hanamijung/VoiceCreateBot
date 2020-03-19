@@ -268,7 +268,7 @@ class voice(commands.Cog):
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
             channelID = voiceGroup[0]
-            role = discord.utils.get(ctx.guild.roles, name='@everyone')
+            role = discord.utils.get(ctx.guild.roles, name='Member')
             channel = self.bot.get_channel(channelID)
             await channel.set_permissions(role, connect=False, read_messages=True)
             await ctx.channel.send(f'{ctx.author.mention} Voice chat locked! 🔒')
@@ -286,7 +286,7 @@ class voice(commands.Cog):
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         else:
             channelID = voiceGroup[0]
-            role = discord.utils.get(ctx.guild.roles, name='@everyone')
+            role = discord.utils.get(ctx.guild.roles, name='Member')
             channel = self.bot.get_channel(channelID)
             await channel.set_permissions(role, connect=True, read_messages=True)
             await ctx.channel.send(f'{ctx.author.mention} Voice chat unlocked! 🔓')
