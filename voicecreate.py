@@ -1,4 +1,3 @@
-# -*- coding: future_fstrings -*-
 import discord
 import math
 import asyncio

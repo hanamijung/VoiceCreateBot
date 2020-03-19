@@ -1,2 +1,4 @@
 __pycache__
+.vscode
+/voice.db
 /voicecreate.service

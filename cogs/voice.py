@@ -1,4 +1,3 @@
-# -*- coding: future_fstrings -*-
 import discord
 import math
 import asyncio
@@ -22,9 +21,9 @@ class voice(commands.Cog):
         c = conn.cursor()
         c.execute("CREATE TABLE IF NOT EXISTS `guild` ( `guildID` INTEGER, `ownerID` INTEGER, `voiceChannelID` INTEGER, `voiceCategoryID` INTEGER )")
         c.execute(
-            "CREATE TABLE IF NOT EXISTS `guildSettings` ( `guildID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
+            "CREATE TABLE IF NOT EXISTS `guildSettings` ( `guildID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER, `maxBitrate` INTEGER )")
         c.execute(
-            "CREATE TABLE IF NOT EXISTS `userSettings` ( `userID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER )")
+            "CREATE TABLE IF NOT EXISTS `userSettings` ( `userID` INTEGER, `channelName` TEXT, `channelLimit` INTEGER, `bitrate` INTEGER )")
         c.execute(
             "CREATE TABLE IF NOT EXISTS `voiceChannel` ( `userID` INTEGER, `voiceID` INTEGER )")
         conn.commit()
@@ -34,7 +33,8 @@ class voice(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_path = os.environ.get('VCB_DB_PATH') or 'voice.db'
-        self.admin_role_id = os.environ["ADMIN_ROLE_ID"]
+        self.admin_role_id = os.environ["ADMIN_ROLE_ID"] or None
+        self.booster_role_id = os.environ["BOOSTER_ROLE_ID"] or None
         self.initDB()
 
     @commands.Cog.listener()
@@ -71,7 +71,7 @@ class voice(commands.Cog):
                         "SELECT voiceCategoryID FROM guild WHERE guildID = ?", (guildID,))
                     voice = c.fetchone()
                     c.execute(
-                        "SELECT channelName, channelLimit FROM userSettings WHERE userID = ?", (member.id,))
+                        "SELECT channelName, channelLimit, bitrate FROM userSettings WHERE userID = ?", (member.id,))
                     setting = c.fetchone()
                     c.execute(
                         "SELECT channelLimit FROM guildSettings WHERE guildID = ?", (guildID,))
@@ -82,6 +82,7 @@ class voice(commands.Cog):
                             limit = 0
                         else:
                             limit = guildSetting[0]
+                        bitrate = 64
                     else:
                         if guildSetting is None:
                             name = setting[0]
@@ -92,6 +93,7 @@ class voice(commands.Cog):
                         else:
                             name = setting[0]
                             limit = setting[1]
+                        bitrate = setting[2] or 64
                     categoryID = voice[0]
                     mid = member.id
                     category = self.bot.get_channel(categoryID)
@@ -104,6 +106,9 @@ class voice(commands.Cog):
                     #await channel2.set_permissions(self.bot.user, connect=True, read_messages=True)
                     print(f"Set user limit to {limit} on {channel2}")
                     await channel2.edit(name=name, user_limit=limit)
+                    if bitrate != 64:
+                        print(f"Setting bitrate to {bitrate}kbps on {channel2}")
+                        await channel2.edit(bitrate=bitrate * 1000)
                     print(f"Track voiceChannel {mid},{channelID}")
                     c.execute(
                         "INSERT INTO voiceChannel VALUES (?, ?)", (mid, channelID))
@@ -134,7 +139,9 @@ class voice(commands.Cog):
                         f'**Change your channel limit by using the following command:**\n\n`.voice limit number`\n\n**Example:** `.voice limit 2`\n\n------------\n\n'
                         f'**Give users permission to join by using the following command:**\n\n`.voice permit @person`\n\n**Example:** `.voice permit @Sam#9452`\n\n------------\n\n'
                         f'**Claim ownership of channel once the owner has left:**\n\n`.voice claim`\n\n**Example:** `.voice claim`\n\n------------\n\n'
-                        f'**Remove permission and the user from your channel using the following command:**\n\n`.voice reject @person`\n\n**Example:** `.voice reject @Sam#9452`\n\n', inline='false')
+                        f'**Remove permission and the user from your channel using the following command:**\n\n`.voice reject @person`\n\n**Example:** `.voice reject @Sam#9452`\n\n'
+                        f'**Change channel bitrate if you are a Nitro Booster using the following command:**\n\n`.voice bitrate number`\n\n**Example:** `.voice bitrate 128`\n\n',
+                        inline='false')
         embed.set_footer(
             text='Bot developed by Sam#9452. Improved by DarthMinos#1161 and ArtfulAardvark#9968')
         await ctx.channel.send(embed=embed)
@@ -212,12 +219,34 @@ class voice(commands.Cog):
                       (ctx.guild.id,))
             voiceGroup = c.fetchone()
             if voiceGroup is None:
-                c.execute("INSERT INTO guildSettings VALUES (?, ?, ?)",
-                          (ctx.guild.id, f"{ctx.author.name}'s channel", num))
+                c.execute("INSERT INTO guildSettings VALUES (?, ?, ?, ?)",
+                          (ctx.guild.id, f"{ctx.author.name}'s channel", num, None))
             else:
                 c.execute(
                     "UPDATE guildSettings SET channelLimit = ? WHERE guildID = ?", (num, ctx.guild.id))
             await ctx.send("You have changed the default channel limit for your server!")
+        else:
+            await ctx.channel.send(f"{ctx.author.mention} only the owner or admins of the server can setup the bot!")
+        conn.commit()
+        conn.close()
+
+    @commands.command(pass_context=True)
+    async def maxbitrate(self, ctx, num):
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        is_author_admin = self.admin_role_id in [str(role.id) for role in ctx.author.roles]
+        # removed the specific user permission and checked for admin status instead.
+        if ctx.author.id == ctx.guild.owner.id or is_author_admin:
+            c.execute("SELECT * FROM guildSettings WHERE guildID = ?",
+                      (ctx.guild.id,))
+            voiceGroup = c.fetchone()
+            if voiceGroup is None:
+                c.execute("INSERT INTO guildSettings VALUES (?, ?, ?, ?)",
+                          (ctx.guild.id, f"{ctx.author.name}'s channel", 0, num))
+            else:
+                c.execute(
+                    "UPDATE guildSettings SET maxBitrate = ? WHERE guildID = ?", (num, ctx.guild.id))
+            await ctx.send("You have changed the maximum channel bitrate for your server!")
         else:
             await ctx.channel.send(f"{ctx.author.mention} only the owner or admins of the server can setup the bot!")
         conn.commit()
@@ -324,8 +353,8 @@ class voice(commands.Cog):
                 "SELECT channelName FROM userSettings WHERE userID = ?", (aid,))
             voiceGroup = c.fetchone()
             if voiceGroup is None:
-                c.execute("INSERT INTO userSettings VALUES (?, ?, ?)",
-                          (aid, f'{ctx.author.name}', limit))
+                c.execute("INSERT INTO userSettings VALUES (?, ?, ?, ?)",
+                          (aid, f'{ctx.author.name}', limit, None))
             else:
                 c.execute(
                     "UPDATE userSettings SET channelLimit = ? WHERE userID = ?", (limit, aid))
@@ -352,7 +381,7 @@ class voice(commands.Cog):
             voiceGroup = c.fetchone()
             if voiceGroup is None:
                 c.execute(
-                    "INSERT INTO userSettings VALUES (?, ?, ?)", (aid, name, 0))
+                    "INSERT INTO userSettings VALUES (?, ?, ?, ?)", (aid, name, 0, None))
             else:
                 c.execute(
                     "UPDATE userSettings SET channelName = ? WHERE userID = ?", (name, aid))
@@ -386,6 +415,52 @@ class voice(commands.Cog):
                         "UPDATE voiceChannel SET userID = ? WHERE voiceID = ?", (aid, channel.id))
             conn.commit()
             conn.close()
+
+    @voice.command()
+    async def bitrate(self, ctx, new_bitrate):
+        new_bitrate = int(new_bitrate)
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        aid = ctx.author.id
+        c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
+        voiceGroup = c.fetchone()
+        is_author_admin = self.admin_role_id in [str(role.id) for role in ctx.author.roles]
+        is_author_booster = self.booster_role_id in [str(role.id) for role in ctx.author.roles]
+        if voiceGroup is None:
+            await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
+        elif not is_author_admin and not is_author_booster:
+            await ctx.channel.send(f"{ctx.author.mention} You need to be a Nitro Booster to use this command.")
+        else:
+            channelID = voiceGroup[0]
+            channel = self.bot.get_channel(channelID)
+            old_bitrate = int(channel.bitrate / 1000)
+            c.execute("SELECT maxBitrate FROM guildSettings WHERE guildID = ?", (ctx.guild.id,))
+            guildSetting = c.fetchone()
+            if guildSetting is None or not guildSetting[0]:
+                c.execute("SELECT voiceChannelID FROM guild WHERE guildID = ?", (ctx.guild.id,))
+                voiceGroup = c.fetchone()
+                channel2 = self.bot.get_channel(voiceGroup[0])
+                max_bitrate = channel2.bitrate
+            else:
+                max_bitrate = guildSetting[0]
+            if new_bitrate < 8 or new_bitrate > max_bitrate:
+                await ctx.channel.send(f"{ctx.author.mention} Invalid bitrate specified (must be between 8 and {max_bitrate}).")
+            elif new_bitrate == old_bitrate:
+                await ctx.channel.send(f'{ctx.author.mention} Channel bitrate already is {new_bitrate}kbps, nothing to change.')
+            else:
+                await channel.edit(bitrate=new_bitrate * 1000)
+                await ctx.channel.send(f'{ctx.author.mention} You have changed the channel bitrate from {old_bitrate}kbps to {new_bitrate}kbps!')
+                c.execute(
+                    "SELECT channelName FROM userSettings WHERE userID = ?", (aid,))
+                voiceGroup = c.fetchone()
+                if voiceGroup is None:
+                    c.execute("INSERT INTO userSettings VALUES (?, ?, ?, ?)",
+                            (aid, f'{ctx.author.name}', 0, new_bitrate))
+                else:
+                    c.execute(
+                        "UPDATE userSettings SET bitrate = ? WHERE userID = ?", (new_bitrate, aid))
+        conn.commit()
+        conn.close()
 
 
 def setup(bot):
