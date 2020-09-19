@@ -34,7 +34,6 @@ class voice(commands.Cog):
         self.bot = bot
         self.db_path = os.environ.get('VCB_DB_PATH') or 'voice.db'
         self.admin_role_id = os.environ["ADMIN_ROLE_ID"] or None
-        self.booster_role_id = os.environ["BOOSTER_ROLE_ID"] or None
         self.initDB()
 
     @commands.Cog.listener()
@@ -425,7 +424,6 @@ class voice(commands.Cog):
         c.execute("SELECT voiceID FROM voiceChannel WHERE userID = ?", (aid,))
         voiceGroup = c.fetchone()
         is_author_admin = self.admin_role_id in [str(role.id) for role in ctx.author.roles]
-        is_author_booster = self.booster_role_id in [str(role.id) for role in ctx.author.roles]
         if voiceGroup is None:
             await ctx.channel.send(f"{ctx.author.mention} You don't own a channel.")
         elif not is_author_admin and not is_author_booster:
