@@ -81,7 +81,7 @@ class voice(commands.Cog):
                             limit = 0
                         else:
                             limit = guildSetting[0]
-                        bitrate = 64
+                        bitrate = 256
                     else:
                         if guildSetting is None:
                             name = setting[0]
@@ -102,7 +102,7 @@ class voice(commands.Cog):
                     print(f"Moving {member} to {channel2}")
                     await member.move_to(channel2)
                     #print(f"Setting permissions on {channel2}")
-                    #await channel2.set_permissions(self.bot.user, connect=True, read_messages=True)
+                    await channel2.set_permissions(member, manage_channels=True)
                     print(f"Set user limit to {limit} on {channel2}")
                     await channel2.edit(name=name, user_limit=limit)
                     if bitrate != 64:
